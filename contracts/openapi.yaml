@@ -1,0 +1,307 @@
+openapi: 3.1.0
+info:
+  title: Anime Aggregation API
+  version: 0.1.0
+servers:
+  - url: /
+paths:
+  /v1/news:
+    get:
+      operationId: listNews
+      parameters:
+        - {name: source, in: query, schema: {type: string}}
+        - {name: language, in: query, schema: {type: string}}
+        - {name: anime_id, in: query, schema: {type: string, format: uuid}}
+        - {name: published_from, in: query, schema: {type: string, format: date-time}}
+        - {name: published_to, in: query, schema: {type: string, format: date-time}}
+        - {name: q, in: query, schema: {type: string, maxLength: 200}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: News list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsList'
+  /v1/news/{id}:
+    get:
+      operationId: getNews
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: News item
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/News'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/anime:
+    get:
+      operationId: listAnime
+      parameters:
+        - {name: q, in: query, schema: {type: string, maxLength: 200}}
+        - {name: season, in: query, schema: {type: string}}
+        - {name: season_year, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: external_namespace, in: query, schema: {type: string}}
+        - {name: external_id, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Anime list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnimeList'}
+  /v1/anime/{id}:
+    get:
+      operationId: getAnime
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Anime detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Anime'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/anime/{id}/news:
+    get:
+      operationId: listAnimeNews
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: News linked to anime
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NewsList'}
+  /v1/schedule:
+    get:
+      operationId: listSchedule
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+        - {name: timezone, in: query, schema: {type: string, default: UTC}}
+        - {name: air_type, in: query, schema: {type: string}}
+        - {name: anime_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Schedule
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/ScheduleEntry'}
+  /v1/official/posts:
+    get:
+      operationId: listOfficialPosts
+      parameters:
+        - {name: source, in: query, schema: {type: string}}
+        - {name: anime_id, in: query, schema: {type: string, format: uuid}}
+        - {name: published_from, in: query, schema: {type: string, format: date-time}}
+        - {name: published_to, in: query, schema: {type: string, format: date-time}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Official posts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, page]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/OfficialPost'}
+                  page: {$ref: '#/components/schemas/Page'}
+  /v1/sources:
+    get:
+      operationId: listSources
+      responses:
+        '200':
+          description: Source health list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/SourceHealth'}
+  /health/live:
+    get:
+      operationId: liveness
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: {type: string, const: ok}
+  /health/ready:
+    get:
+      operationId: readiness
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: {type: string, const: ready}
+        '503':
+          description: Service is not ready
+
+components:
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+  schemas:
+    Page:
+      type: object
+      required: [next_cursor]
+      properties:
+        next_cursor: {type: [string, 'null']}
+    SourceRef:
+      type: object
+      required: [source_id, url]
+      properties:
+        source_id: {type: string}
+        url: {type: string, format: uri}
+        published_at: {type: [string, 'null'], format: date-time}
+    AnimeRef:
+      type: object
+      required: [id, title]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        confidence: {type: number, minimum: 0, maximum: 1}
+    News:
+      type: object
+      required: [id, title, canonical_url, published_at, sources, anime]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        canonical_url: {type: string, format: uri}
+        language: {type: [string, 'null']}
+        excerpt: {type: [string, 'null'], maxLength: 2000}
+        published_at: {type: string, format: date-time}
+        updated_at: {type: [string, 'null'], format: date-time}
+        sources:
+          type: array
+          items: {$ref: '#/components/schemas/SourceRef'}
+        anime:
+          type: array
+          items: {$ref: '#/components/schemas/AnimeRef'}
+    NewsList:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/News'}
+        page: {$ref: '#/components/schemas/Page'}
+    ExternalId:
+      type: object
+      required: [namespace, id]
+      properties:
+        namespace: {type: string}
+        id: {type: string}
+    Anime:
+      type: object
+      required: [id, canonical_title, titles, external_ids]
+      properties:
+        id: {type: string, format: uuid}
+        canonical_title: {type: string}
+        original_title: {type: [string, 'null']}
+        format: {type: [string, 'null']}
+        status: {type: [string, 'null']}
+        start_date: {type: [string, 'null'], format: date}
+        end_date: {type: [string, 'null'], format: date}
+        season: {type: [string, 'null']}
+        season_year: {type: [integer, 'null']}
+        titles:
+          type: array
+          items:
+            type: object
+            required: [title, type]
+            properties:
+              title: {type: string}
+              language: {type: [string, 'null']}
+              type: {type: string}
+        external_ids:
+          type: array
+          items: {$ref: '#/components/schemas/ExternalId'}
+    AnimeList:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/Anime'}
+        page: {$ref: '#/components/schemas/Page'}
+    ScheduleEntry:
+      type: object
+      required: [anime_id, starts_at, air_type, source_id]
+      properties:
+        anime_id: {type: string, format: uuid}
+        starts_at: {type: string, format: date-time}
+        air_type: {type: string}
+        episode_number: {type: [number, 'null']}
+        source_id: {type: string}
+    OfficialPost:
+      type: object
+      required: [id, source_id, external_id, title, url, published_at]
+      properties:
+        id: {type: string, format: uuid}
+        source_id: {type: string}
+        external_id: {type: string}
+        channel_id: {type: [string, 'null']}
+        title: {type: string}
+        url: {type: string, format: uri}
+        published_at: {type: string, format: date-time}
+        anime:
+          type: array
+          items: {$ref: '#/components/schemas/AnimeRef'}
+    SourceHealth:
+      type: object
+      required: [source_id, kind, access_method, enabled, health_status]
+      properties:
+        source_id: {type: string}
+        kind: {type: string, enum: [NEWS, DATABASE, OFFICIAL]}
+        access_method: {type: string, enum: [API, RSS, CRAWLER]}
+        enabled: {type: boolean}
+        health_status: {type: string}
+        last_success_at: {type: [string, 'null'], format: date-time}
+        last_error_at: {type: [string, 'null'], format: date-time}
+        last_http_status: {type: [integer, 'null']}
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            request_id: {type: string}
+            details: {type: object, additionalProperties: true}
