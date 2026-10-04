@@ -1,0 +1,110 @@
+version: 1
+sources:
+  - id: news_crunchyroll_en
+    kind: NEWS
+    access_method: RSS
+    trust_tier: T1
+    enabled: false
+    enable_after_probe: true
+    legal_status: review
+    poll_interval_seconds: 300
+    endpoint:
+      url: https://cr-news-api-service.prd.crunchyrollsvc.com/v1/en-US/rss
+      format: rss
+
+  - id: news_ann_us
+    kind: NEWS
+    access_method: RSS
+    trust_tier: T2
+    enabled: false
+    enable_after_probe: true
+    legal_status: review
+    poll_interval_seconds: 300
+    endpoint:
+      url: https://www.animenewsnetwork.com/news/rss.xml?ann-edition=us
+      format: rss
+
+  - id: news_mal
+    kind: NEWS
+    access_method: RSS
+    trust_tier: T2
+    enabled: false
+    enable_after_probe: true
+    legal_status: review
+    poll_interval_seconds: 600
+    endpoint:
+      url: https://myanimelist.net/rss/news.xml
+      format: rss
+
+  - id: db_bangumi
+    kind: DATABASE
+    access_method: API
+    trust_tier: T3
+    enabled: false
+    enable_after_probe: true
+    legal_status: review
+    endpoint:
+      url: https://api.bgm.tv
+      format: json
+    config:
+      user_agent_env: BANGUMI_USER_AGENT
+
+  - id: db_mal
+    kind: DATABASE
+    access_method: API
+    trust_tier: T3
+    enabled: false
+    enable_when_env_present: MAL_CLIENT_ID
+    legal_status: review
+    endpoint:
+      url: https://api.myanimelist.net/v2
+      format: json
+
+  - id: db_animeschedule
+    kind: DATABASE
+    access_method: API
+    trust_tier: T3
+    enabled: false
+    enable_when_env_present: ANIMESCHEDULE_TOKEN
+    legal_status: review
+    endpoint:
+      url: https://animeschedule.net/api/v3
+      format: json
+
+  - id: db_kitsu
+    kind: DATABASE
+    access_method: API
+    trust_tier: T3
+    enabled: false
+    enable_after_probe: true
+    legal_status: review
+    endpoint:
+      url: https://kitsu.io/api/edge
+      format: jsonapi
+
+  - id: db_anilist
+    kind: DATABASE
+    access_method: API
+    trust_tier: T3
+    enabled: false
+    legal_status: review
+    restricted_mode: true
+    endpoint:
+      url: https://graphql.anilist.co
+      format: graphql
+
+  # 真实 channel_id 必须人工验证后填写；不要猜。
+  - id: official_youtube_example
+    kind: OFFICIAL
+    access_method: RSS
+    trust_tier: T0
+    enabled: false
+    legal_status: review
+    poll_interval_seconds: 300
+    endpoint:
+      url_template: https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}
+      format: atom
+    config:
+      owner: REPLACE_WITH_VERIFIED_ORG
+      channel_id: REPLACE_WITH_VERIFIED_CHANNEL_ID
+      verification_url: REPLACE_WITH_EVIDENCE_URL
