@@ -81,6 +81,14 @@
 - `NFR-010` 必须可在 Windows + Docker Desktop 开发，在 Linux container 生产部署。
 - `NFR-011` Source Adapter contract test MUST 可使用 fixture，不要求 CI 每次依赖真实互联网。
 - `NFR-012` 外部数据字段必须能追踪 `source_id` 与 external URL/ID。
+- `NFR-013` 应用 MUST 通过配置连接 PostgreSQL 与 Redis，不得依赖 `localhost`、Docker service name、固定 IP 或特定云厂商 endpoint。
+- `NFR-014` 同一应用镜像 MUST 能通过环境变量切换本地 Compose、同机部署、独立数据库服务器和托管 PostgreSQL/Redis；切换部署形式不得要求修改业务代码。
+- `NFR-015` PostgreSQL 连接 MUST 通过统一 Database Factory/Pool 建立，并支持连接池、连接超时、空闲超时、statement timeout 与可选 TLS。
+- `NFR-016` Redis/BullMQ 连接 MUST 通过统一 Queue/Cache 连接层建立；业务模块不得直接创建 Redis client 或依赖 Redis 私有 key 结构。
+- `NFR-017` Queue 与 Cache MUST 在逻辑上分离，即使部署时共享同一个 Redis；队列 key 使用 BullMQ 的 `prefix` 机制，不得使用 ioredis `keyPrefix`。
+- `NFR-018` PostgreSQL migration MUST 作为显式部署步骤运行，不得由每个 API/Worker replica 在启动时竞争执行。
+- `NFR-019` Redis MUST NOT 成为 canonical datastore；生产队列 Redis SHOULD 启用持久化并使用禁止淘汰队列 key 的内存策略。
+- `NFR-020` Readiness MUST 按进程职责区分：API 以 PostgreSQL/config 为硬依赖，纯缓存 Redis 故障不应强制 API 503；Worker 以 PostgreSQL 与 Queue backend 为硬依赖。
 
 ## 4. MVP Success Metrics
 
@@ -90,6 +98,7 @@
 - 24h 内重复新闻率（用户可见） < 3%。
 - 同一条 feed item 重跑 10 次，数据库记录数不增长。
 - source failure 不导致 API 不可用。
+- 本地 Compose 与“外部 PostgreSQL + 外部 Redis”两种配置均通过 integration smoke，应用代码不发生条件分支修改。
 - 所有 MUST requirements 验收通过。
 
 ## 5. Requirement Traceability
@@ -99,5 +108,6 @@
 | Requirement | Design section | Test ID | Status |
 |---|---|---|---|
 | FR-SRC-006 | 05 §6 | IT-INGEST-001 | pending |
+| NFR-014 | 03 §5 | IT-INFRA-001 | pending |
 
 Agent 不得在没有更新 traceability 的情况下把 requirement 标记为 done。
