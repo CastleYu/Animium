@@ -6,7 +6,7 @@
 
 你现在接手一个“动漫资讯聚合 API”项目。你必须按 Spec-Driven Development 执行，不要先写功能再补规格。
 
-项目规格目录是当前仓库的 `anime-aggregation-api-sdd/`（如果这些文件位于仓库根 `docs/`，按实际路径读取）。在写任何业务代码前，完整阅读以下文件，并把它们视为开发合同：
+项目规格位于当前仓库根目录。在写任何业务代码前，完整阅读以下文件，并把它们视为开发合同：
 
 1. README.md
 2. 00_SCOPE_AND_CONSTITUTION.md
@@ -23,11 +23,12 @@
 13. 11_OPERATIONS.md
 14. 12_IMPLEMENTATION_PLAN.md
 15. 14_RISK_REGISTER.md
-16. adr/*
-17. contracts/openapi.yaml
-18. contracts/schema.sql
-19. contracts/source-registry.example.yaml
-20. contracts/.env.example
+16. 15_RESEARCH_NOTES.md
+17. adr/*
+18. contracts/openapi.yaml
+19. contracts/schema.sql
+20. contracts/source-registry.example.yaml
+21. contracts/.env.example
 
 你的任务是实现 MVP。严格执行以下边界：
 
@@ -41,6 +42,22 @@
 - Jikan 默认 disabled，只能作为显式 fallback；不能替代 MAL 官方 API 成为主链路。
 - YouTube 官方源只允许 allowlist 中经人工确认的 channel_id；不得根据频道名称猜“官方”。
 - 不允许用轮换 IP、绕过 403/429、伪装浏览器等方式规避上游限制。
+
+基础设施可迁移性是硬约束：
+
+- PostgreSQL 与 Redis 是可远程部署的网络基础设施依赖；Docker Compose 只是本地开发实现。
+- 同一应用镜像必须能连接本地 Compose、同机服务、远程服务器或托管 PostgreSQL/Redis；只允许改变 env/Secret，不允许修改业务代码。
+- 禁止在业务代码硬编码 `localhost`、`postgres`、`redis`、固定 IP、云厂商 hostname 或 `if (production)` 主机分支。
+- 所有 PostgreSQL 连接只允许通过统一 `createDatabase(config)` / shared pool factory；Repository、handler、service 不得自行 `new Pool()` 或读取 `DATABASE_URL`。
+- 所有 Redis/BullMQ 连接只允许通过 Queue/Cache factory；业务模块不得自行创建 Redis client，不得依赖 BullMQ 私有 key。
+- Queue 与 Cache 逻辑分离，即使物理上共享 Redis。
+- BullMQ namespace 使用 BullMQ 的 `prefix`，禁止使用 ioredis `keyPrefix` 作为 BullMQ 前缀。
+- PostgreSQL migration 必须是独立 one-shot 部署步骤；API/Worker 启动不得自动竞争执行 migration。
+- PostgreSQL 是 canonical datastore。Redis 不是 canonical datastore，但生产 queue backend 仍应采用适合队列的持久化/恢复策略。
+- API readiness：PostgreSQL/config 是硬依赖；cache-only Redis 故障应降级读数据库，不应单独导致 API 503。
+- Worker readiness：PostgreSQL 与 queue backend 均为硬依赖。
+- 数据库/Redis TLS、CA、密码必须通过 env/Secret/file mount 注入，不进入源码、日志或镜像。
+- 单机部署样例不得将 PostgreSQL 5432 或 Redis 6379 暴露到公网。
 
 技术基线：TypeScript strict、Node.js LTS、Fastify、PostgreSQL、Redis/BullMQ、Zod、Vitest、Docker Compose。除非存在硬性 blocker，不要更换；若必须更换，先新增 ADR，说明原因、替代方案、影响，并同步修改规格。
 
@@ -57,6 +74,8 @@
 - 创建 `docs/traceability.md`，把所有 `FR-*`/`NFR-*` 映射到设计章节与测试 ID。
 - 执行 Source Probe（可写临时 CLI），对 P1 RSS/API endpoint 检查状态、content-type、解析是否成功、必要凭证是否存在，并生成 `docs/source-probe-report.md`。Probe 不通过的来源保持 disabled；不要改用爬虫。
 - 生成首个 migration，并验证从空 PostgreSQL 执行成功。
+- 建立独立 `db:migrate` command，并证明 API/Worker startup 不会自动执行 migration。
+- 用同一个 build artifact 分别验证本地 Compose endpoint 与外部地址形式的 PostgreSQL/Redis 配置。
 - 验证 `contracts/openapi.yaml` 可被 OpenAPI validator 解析。
 
 实现原则：
@@ -68,7 +87,7 @@
 - 同一 feed 重跑 10 次不能增加重复记录。
 - entity link 优先 external ID exact；模糊标题不确定时宁可 unmatched，也不要错绑。
 - 上游冲突时保留证据，不做不可追溯覆盖。
-- Redis 不能作为唯一持久状态；canonical data/cursor 必须在 PostgreSQL。
+- Redis 不能作为 canonical 持久状态；canonical data/cursor 必须在 PostgreSQL。
 
 Public API 必须至少实现：
 
@@ -85,21 +104,25 @@ Public API 必须至少实现：
 
 List endpoint 使用 opaque cursor pagination。错误响应、字段、查询参数以 `contracts/openapi.yaml` 为准。如果规格与机器合同存在冲突，不要自行猜；先指出冲突并按 SDD 修改规格/ADR 后再实现。
 
-测试必须覆盖 `10_TEST_AND_ACCEPTANCE.md` 中所有 MUST 场景，尤其：幂等、429、单源隔离、schema drift、exact external ID link、同名歧义、XXE、防泄露 token、全文不外泄。
+测试必须覆盖 `10_TEST_AND_ACCEPTANCE.md` 中所有 MUST 场景，尤其：幂等、429、单源隔离、schema drift、exact external ID link、同名歧义、XXE、防泄露 token、全文不外泄，以及 infrastructure portability/readiness/migration isolation。
 
 MVP 完成时交付：
 
 - 可运行源码
-- Docker Compose
+- Docker Compose（本地开发）
+- production deployment example
 - migrations
+- 独立 migration command/job
 - seed/source registry
 - OpenAPI
 - unit/integration/E2E tests
 - source probe report
+- infrastructure portability smoke report
 - traceability matrix
 - runbook
 - `.env.example`
 - README 的本地 Windows/Docker 启动方法
+- README 的远程 PostgreSQL/Redis 配置方法
 - release checklist
 
 不要开展 Phase 2 的 HTML Crawler、Playwright、LLM 摘要/事件抽取、全文抓取、推荐系统或 Admin UI，除非 MVP 全部验收完成且用户明确追加范围。
