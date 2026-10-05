@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!contracts/.env.example
+
+# Build output
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+logs/
+
+# Runtime
+*.pid
+*.pid.lock
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker/local volumes
+.postgres-data/
+.redis-data/
+
+# Temporary source diagnostics
+tmp/
+.temp/
