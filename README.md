@@ -16,6 +16,8 @@
 - 不做第三方站点全文镜像。默认仅保存聚合所需字段、来源 URL、必要摘要/Feed excerpt 与数据血缘。
 - 每个来源必须有独立 Adapter、限流、缓存、重试、熔断、健康状态和可禁用开关。
 - 对来源条款、商业许可、转载版权采取“默认保守”策略。
+- PostgreSQL 与 Redis 视为可远程部署的基础设施依赖；Docker Compose 仅是本地开发/可选单机部署方式。
+- 同一应用构建产物必须通过环境变量/Secret 支持本地、单机、独立服务器或托管 PostgreSQL/Redis，不得因部署拓扑变化修改业务代码。
 
 ## 2. 第一阶段交付范围（MVP）
 
@@ -70,11 +72,12 @@ Jikan 仅作为非官方 MAL fallback 候选，不作为生产主依赖。
 13. `12_IMPLEMENTATION_PLAN.md`
 14. `13_AGENT_HANDOFF_PROMPT.md`
 15. `14_RISK_REGISTER.md`
-16. `adr/*`
-17. `contracts/openapi.yaml`
-18. `contracts/schema.sql`
-19. `contracts/source-registry.example.yaml`
-20. `contracts/.env.example`
+16. `15_RESEARCH_NOTES.md`
+17. `adr/*`
+18. `contracts/openapi.yaml`
+19. `contracts/schema.sql`
+20. `contracts/source-registry.example.yaml`
+21. `contracts/.env.example`
 
 ## 4. 规格状态
 
@@ -95,9 +98,33 @@ Jikan 仅作为非官方 MAL fallback 候选，不作为生产主依赖。
 - Zod
 - Drizzle ORM（或纯 SQL migration；若改 ORM 必须 ADR）
 - Vitest
-- Docker Compose
+- Docker Compose（本地开发 profile）
 
 Windows 开发环境以 Docker Desktop + WSL2 为推荐路径；应用容器按 Linux 生产环境设计。
+
+### 基础设施部署约束
+
+应用不得假设 PostgreSQL/Redis 与自身处于同一个 Docker network。所有连接信息通过 `contracts/.env.example` 中定义的配置注入。
+
+支持的目标形式：
+
+```text
+Local Compose
+  ├─ PostgreSQL
+  └─ Redis
+
+Single Server
+  ├─ App
+  ├─ PostgreSQL
+  └─ Redis
+
+Split / Managed
+  App Server
+    ├─ remote/managed PostgreSQL
+    └─ remote/managed Redis
+```
+
+切换部署形式不得修改 repository、service、handler、adapter 等业务代码。
 
 ## 6. 关键外部文档
 
@@ -122,6 +149,8 @@ Windows 开发环境以 Docker Desktop + WSL2 为推荐路径；应用容器按 
 - 已准备 MAL Client ID、AnimeSchedule application token（如果启用）、Bangumi UA；所有密钥只进入环境变量。
 - 已确认 AniList 的实际使用方式满足条款；若无法确认，默认禁用 AniList adapter。
 - 已锁定数据库 migration 与 OpenAPI contract。
+- 已理解 ADR-0007：PostgreSQL/Redis 部署拓扑不得泄漏进业务层。
+- 已定义独立 migration 命令以及 Database/Queue/Cache factory 边界。
 
 ## 8. Definition of Done
 
@@ -135,3 +164,6 @@ MVP 完成的最低条件：
 - 源不可用时不会拖垮全局任务队列。
 - `/v1/sources` 能展示来源健康度、最后成功时间、是否启用。
 - 不对外提供第三方正文全文镜像。
+- 同一构建产物在本地 Compose 与外部 PostgreSQL/Redis endpoint 配置下均通过基础设施 smoke test。
+- API cache Redis 故障时可降级访问 PostgreSQL；Worker queue backend 故障时正确进入 not-ready。
+- migration 通过独立部署命令执行，API/Worker 启动不自动竞争 migration。
