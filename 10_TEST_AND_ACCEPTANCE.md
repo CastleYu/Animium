@@ -11,6 +11,8 @@
 - cursor encoding
 - dedupe scoring
 - entity candidate scoring
+- infrastructure config parsing
+- database/queue/cache factory configuration
 
 ### Contract
 
@@ -23,6 +25,10 @@
 - ingestion transaction
 - duplicate replay
 - source health transitions
+- database pool against local PostgreSQL
+- database pool against externally addressed PostgreSQL endpoint
+- queue/cache against configurable Redis endpoint
+- API cache failure fallback
 
 ### Live Source Smoke
 
@@ -45,18 +51,27 @@ API against seeded DB。
 - `UT-URL-001`: canonical URL normalization
 - `UT-TITLE-001`: Japanese/English title normalization
 - `UT-DEDUPE-001`: same GUID idempotency
+- `UT-CONFIG-001`: PostgreSQL/Redis config rejects invalid values and does not hardcode topology
+- `UT-DB-FACTORY-001`: repositories receive shared database abstraction rather than creating pools
+- `UT-QUEUE-FACTORY-001`: queue/cache clients are created only by infrastructure factories
 - `IT-INGEST-001`: same feed replay 10x no duplicate
 - `IT-INGEST-002`: one source 500 does not fail another source
 - `IT-RATE-001`: 429 honors Retry-After
 - `IT-SCHEMA-001`: schema drift marks degraded
 - `IT-ENTITY-001`: exact external ID links correct anime
 - `IT-ENTITY-002`: ambiguous exact title does not auto-link wrong item
+- `IT-INFRA-001`: same application build works with Compose-hosted and externally addressed PostgreSQL/Redis by config only
+- `IT-INFRA-002`: API remains ready when cache-only Redis is unavailable and PostgreSQL is healthy
+- `IT-INFRA-003`: Worker becomes not-ready when queue backend is unavailable
+- `IT-INFRA-004`: migration runs as an explicit one-shot command and application startup does not auto-run it
+- `IT-INFRA-005`: BullMQ prefix is configured through BullMQ and no ioredis keyPrefix is used for queue isolation
 - `E2E-NEWS-001`: news filter/source/language/time
 - `E2E-ANIME-001`: anime external id lookup
 - `E2E-SCHED-001`: schedule timezone presentation
 - `E2E-SOURCE-001`: `/v1/sources` reports health
 - `SEC-XML-001`: XXE payload not resolved
 - `SEC-LOG-001`: bearer token not present in log capture
+- `SEC-INFRA-001`: connection credentials and TLS material are not logged
 
 ## 3. Acceptance Scenarios
 
@@ -96,6 +111,30 @@ Given AniList `legal_status=review` and production policy requires approved
 When scheduler runs  
 Then adapter is skipped with `LEGAL_DISABLED` status.
 
+### AC-07 Infrastructure portability
+
+Given the same compiled application/container image  
+When `DATABASE_URL` and `REDIS_URL` are changed from local Compose endpoints to externally addressed services  
+Then API and Worker start without code changes and pass their respective readiness checks.
+
+### AC-08 Cache degradation
+
+Given PostgreSQL is healthy and API cache Redis is unavailable  
+When a cacheable API request is made  
+Then API serves from PostgreSQL, records degraded cache telemetry, and does not return 503 solely because cache is unavailable.
+
+### AC-09 Worker queue dependency
+
+Given PostgreSQL is healthy but queue backend is unavailable  
+When Worker readiness is checked  
+Then Worker is not ready and does not invent a non-BullMQ fallback path.
+
+### AC-10 Explicit migrations
+
+Given multiple API/Worker replicas are started  
+When deployment occurs  
+Then schema migration has already been executed by one explicit migration job and replicas do not race to run migrations at startup.
+
 ## 4. Release Gate
 
 MVP release requires：
@@ -106,6 +145,7 @@ MVP release requires：
 - at least 4 DATABASE sources configured or documented why disabled.
 - at least 3 verified official channel feeds configured.
 - migrations tested from empty DB.
+- local Compose and external-endpoint infrastructure smoke passed with the same build artifact.
 - backup/restore smoke passed.
 - OpenAPI validation passed.
 - no known critical/high dependency vulnerability without documented exception.
